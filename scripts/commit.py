@@ -1,70 +1,110 @@
 from llm_router import call_llm
+from pathlib import Path
 
-def generate_commit_chunks(diff_chunks: list[str], repo_context: str, llm_cfg: dict, log) -> list[str]:
-    """각 diff 청크에 대해 개별 커밋 메시지를 생성"""
+# ─────────────────────────────────────
+# 📄 프롬프트 로더 (스타일/언어 기반)
+# ─────────────────────────────────────
+def read_prompt_file(style: str, lang: str) -> str:
+    path = Path("prompt_by_style") / lang / f"{style}.txt"
+    return path.read_text(encoding="utf-8").strip()
+
+# ─────────────────────────────────────
+# 🚀 메인 함수
+# ─────────────────────────────────────
+def generate_commit_and_record(
+    diff_chunks: list[str],
+    repo_context: str,
+    llm_cfg_commit: dict,
+    llm_cfg_final: dict,
+    llm_cfg_record: dict,
+    style_cfg: dict,
+    lang_cfg: dict,
+    log
+):
+    log("✏️ [Commit] 청크별 커밋 메시지 생성 시작")
+
+    # 🔧 프롬프트 스타일 불러오기
+    commit_chunk_txt = read_prompt_file(style_cfg["commit_chunk"], lang_cfg["commit"])
+    final_commit_txt = read_prompt_file(style_cfg["commit_final"], lang_cfg["commit"])
+    record_prompt_txt = read_prompt_file(style_cfg["record"], lang_cfg["record"])
+
     commit_msgs = []
+    prompt_vars = {}
+    c_index = 1
 
-    for i, chunk in enumerate(diff_chunks):
-        log(f"🧩 [{i+1}/{len(diff_chunks)}] 커밋 청크 메시지 생성 중...")
+    # ────────────────────────────────
+    # 🔹 청크별 커밋 메시지 생성
+    # ────────────────────────────────
+    for chunk in diff_chunks:
+        prompt = f"""
+아래는 Git 레포의 전체 맥락 요약과 변경된 diff chunk입니다.
+각 변경 내용을 기반으로, 내부 프로젝트에 적합한 커밋 메시지를 요청에 맞게 작성하세요.
 
-        prompt = f"""아래는 Git 레포의 전체 맥락 요약입니다. 이 맥락을 바탕으로, 변경된 diff 내용을 요약하여 내부 프로젝트에 적합한 Git 커밋 메시지를 생성해주세요.
-
-⚙️ 레포 맥락 요약:
+🧱 Repo context:
 {repo_context}
 
-📝 변경된 diff 내용:
+📝 변경된 diff 청크:
 {chunk}
 
-🔧 요청사항:
-- 한 줄 제목 포함 (요약)
-- 변경 이유, 핵심 로직, 고려한 요소 등을 포함한 설명
-- 협업 또는 미래의 나를 위한 요약 커밋 메시지
-
-🎯 형식은 다음과 유사하게 작성해주세요:
-{{
-제목: ...
-설명: ...
-주의사항 or 메모: ...
-}}
+{commit_chunk_txt}
 """
+        var_name = f"c{c_index}"
+        prompt_vars[var_name] = prompt
+        c_index += 1
 
         try:
-            response = call_llm(prompt, llm_cfg)
+            response = call_llm(prompt, llm_cfg_commit)
             commit_msgs.append(response.strip())
         except Exception as e:
-            log(f"❌ chunk {i+1} 메시지 실패: {e}")
-            commit_msgs.append(f"[ERROR] 메시지 생성 실패 - chunk {i+1}")
+            log(f"❌ 커밋 청크 메시지 생성 실패: {e}")
+            commit_msgs.append("[ERROR] 메시지 실패")
 
-    return commit_msgs
+    # ────────────────────────────────
+    # 🔹 최종 커밋 메시지 생성
+    # ────────────────────────────────
+    d = f"""
+당신은 팀 프로젝트의 PR 메시지를 작성하는 전문가입니다.
+아래는 레포의 전체 맥락과, chunk별로 생성된 커밋 메시지들입니다.
 
-
-def generate_final_commit(commit_msgs: list[str], repo_context: str, llm_cfg: dict, log) -> str:
-    """개별 커밋 메시지들을 기반으로, 전체 PR용 요약 메시지를 생성"""
-    prompt = f"""당신은 팀 프로젝트의 PR 메시지를 작성하는 전문가입니다. 아래는 레포의 전체 맥락과, 청크별로 생성된 커밋 메시지들입니다.
-
-🧱 레포 맥락:
+🧱 Repo context:
 {repo_context}
 
-🧩 개별 커밋 메시지들:
+🧩 개별 commit 메시지들:
 {chr(10).join(commit_msgs)}
 
-✍️ 요청사항:
-- 팀원들이 빠르게 핵심 내용을 파악할 수 있도록 최종 요약 커밋 메시지를 작성해주세요.
-- 구조는 다음과 같이 해주세요:
-
-<type>: <요약 문장>
-
-본문:
-- 어떤 변경을 했는지
-- 왜 이 변경이 필요한지
-- 어떤 영향을 주는지
+{final_commit_txt}
 """
+    prompt_vars["d"] = d
 
-    log("🧠 최종 커밋 메시지 생성 중...")
     try:
-        result = call_llm(prompt, llm_cfg)
-        log("✅ 최종 커밋 메시지 생성 완료")
-        return result.strip()
+        final_commit = call_llm(d, llm_cfg_final)
     except Exception as e:
+        final_commit = "[ERROR] 최종 커밋 메시지 실패"
         log(f"❌ 최종 커밋 메시지 실패: {e}")
-        return "[ERROR] 최종 메시지 실패"
+
+    # ────────────────────────────────
+    # 🔹 기록용 메시지 생성 (doc_writing)
+    # ────────────────────────────────
+    combined_diff = "\n\n".join(diff_chunks)
+
+    e = f"""
+다음은 Git 레포의 전체 맥락 요약과 전체 변경된 diff 내용입니다.
+이 프로젝트의 의도, 수정의 맥락, 기술적 고민을 담아 기술 문서용으로 기록해주세요.
+
+🧱 Repo context:
+{repo_context}
+
+🧩 전체 diff:
+{combined_diff}
+
+{record_prompt_txt}
+"""
+    prompt_vars["e"] = e
+
+    try:
+        record_msg = call_llm(e, llm_cfg_record)
+    except Exception as e:
+        record_msg = "[ERROR] 기록 메시지 실패"
+        log(f"❌ 기록용 메시지 실패: {e}")
+
+    return commit_msgs, final_commit.strip(), record_msg.strip(), prompt_vars

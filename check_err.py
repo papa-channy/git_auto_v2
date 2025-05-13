@@ -1,9 +1,9 @@
-import os, json, subprocess, requests
+import os, json, subprocess, requests, shutil
 from pathlib import Path
 from dotenv import load_dotenv
 
 # ────────────────────────────────
-# 🔹 .env 로딩 + Fireworks API Key 로드
+# 🔹 환경변수 로딩
 # ────────────────────────────────
 def load_env_and_api_key():
     env_path = Path(__file__).parent.resolve() / ".env"
@@ -11,15 +11,16 @@ def load_env_and_api_key():
         load_dotenv(dotenv_path=env_path)
 
     api_key = os.getenv("FIREWORKS_API_KEY", "")
-    if not api_key:
-        print_status("FIREWORKS_API_KEY", "없음", "fail")
+    username = os.getenv("username", "")
+    if not api_key or not username:
+        print_status(".env 설정", "FIREWORKS_API_KEY 또는 username 누락", "fail")
         exit(1)
 
     return {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "Accept": "application/json"
-    }, api_key
+    }, api_key, username
 
 # ────────────────────────────────
 # 🔹 상태 출력 헬퍼
@@ -76,62 +77,20 @@ def check_git_remote():
     print_status("원격 저장소", "접근 성공")
 
 # ────────────────────────────────
-# 🔹 Git diff 확인 (없으면 예시 삽입)
-# ────────────────────────────────
-def get_diff_or_example():
-    diff = run("git diff --cached")
-    if diff: return diff
-    print_status("Diff", "없음 → 예시 diff 삽입", "warn")
-    return """diff --git a/main.py b/main.py
-index 0000000..1111111 100644
---- a/main.py
-+++ b/main.py
-@@ def hello():
-+    print("Hello, Git Automation!")"""
-
-# ────────────────────────────────
-# 🔹 Fireworks LLM 호출 (maverick instruct-basic용)
-# ────────────────────────────────
-def call_fireworks_api(prompt: str, api_key: str) -> str:
-    url = "https://api.fireworks.ai/inference/v1/chat/completions"
-    payload = {
-        "model": "accounts/fireworks/models/llama4-maverick-instruct-basic",
-        "max_tokens": 1024,
-        "top_p": 0.8,
-        "top_k": 40,
-        "presence_penalty": 0,
-        "frequency_penalty": 0,
-        "temperature": 0.7,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt}
-                ]
-            }
-        ]
-    }
-    try:
-        response = requests.post(url, headers=HEADERS, json=payload, timeout=60)
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        print_status("LLM 호출", f"실패 - {e}", "fail")
-        exit(1)
-
-# ────────────────────────────────
-# 🔹 설정 파일 로딩 (git_config.json)
+# 🔹 설정 파일 로딩 (config/*.json)
 # ────────────────────────────────
 def load_config():
-    config_path = Path(__file__).parent.resolve() / "git_config.json"
-    if not config_path.exists():
-        print_status("설정 파일", "git_config.json 없음", "fail")
-        exit(1)
-    try:
-        return json.loads(config_path.read_text(encoding="utf-8"))
-    except:
-        print_status("git_config.json", "JSON 파싱 실패", "fail")
-        exit(1)
+    base_path = Path(__file__).parent.resolve() / "config"
+    required_configs = ["llm.json", "style.json", "noti.json", "cost.json"]
+
+    for cfg in required_configs:
+        cfg_path = base_path / cfg
+        if not cfg_path.exists():
+            print_status(f"설정 파일 {cfg}", "없음", "fail")
+            exit(1)
+
+    print_status("모든 설정 파일", "확인 완료")
+    return json.loads((base_path / "noti.json").read_text(encoding="utf-8"))
 
 # ────────────────────────────────
 # 🔹 알림 플랫폼 ping 함수 호출
@@ -142,12 +101,7 @@ def check_notify_platforms(pf_list):
     import notify.gmail as gmail
     import notify.slack as slack
 
-    ping_map = {
-        "discord": discord.ping,
-        "kakao": kakao.ping,
-        "gmail": gmail.ping,
-        "slack": slack.ping
-    }
+    ping_map = {"discord": discord.ping, "kakao": kakao.ping, "gmail": gmail.ping, "slack": slack.ping}
 
     for pf in pf_list:
         if pf not in ping_map:
@@ -160,13 +114,29 @@ def check_notify_platforms(pf_list):
             exit(1)
 
 # ────────────────────────────────
+# 🔹 .bat 자동 생성 + 즉시 실행
+# ────────────────────────────────
+def auto_create_and_run_bat(username):
+    startup_path = Path.home() / "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup"
+    bat_path = startup_path / "set_auto.bat"
+    bash_script = f"C:/Users/{username}/Desktop/git_auto/auto_git.sh"
+
+    content = f"""@echo off
+start "" "C:\\Program Files\\Git\\bin\\bash.exe" --login -i "{bash_script}"
+"""
+
+    bat_path.write_text(content, encoding="utf-8")
+    subprocess.Popen([str(bat_path)], shell=True)
+    print_status("set_auto.bat 생성 및 즉시 실행", f"{bat_path}", "ok")
+
+# ────────────────────────────────
 # 🔹 Main 실행
 # ────────────────────────────────
 def main():
-    print("\n🔍 check_err: 자동화 사전 점검 시작\n")
+    print("\n🔍 check_err: 자동화 사전 점검 및 설정 시작\n")
 
     global HEADERS
-    HEADERS, api_key = load_env_and_api_key()
+    HEADERS, api_key, username = load_env_and_api_key()
 
     check_git_user_config()
     enforce_git_core_config()
@@ -175,14 +145,11 @@ def main():
     check_git_remote()
 
     config = load_config()
-    if "noti_pf" in config:
-        check_notify_platforms(config["noti_pf"])
+    check_notify_platforms(config.get("noti_pf", []))
 
-    diff = get_diff_or_example()
-    result = call_fireworks_api(diff, api_key)
-    print_status("LLM 메시지 생성", f"\n{result}", "ok")
+    auto_create_and_run_bat(username)
 
-    print("\n🎉 모든 점검 완료. 자동화 준비 OK.\n")
+    print("\n🎉 모든 점검 및 설정 완료. 자동화 준비 OK.\n")
 
 if __name__ == "__main__":
     main()
