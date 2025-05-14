@@ -1,26 +1,27 @@
 import os, json, subprocess, requests, shutil
 from pathlib import Path
 from dotenv import load_dotenv
-
+import getpass
+from utils.path import get_git_root
 # ────────────────────────────────
 # 🔹 환경변수 로딩
 # ────────────────────────────────
 def load_env_and_api_key():
-    env_path = Path(__file__).parent.resolve() / ".env"
+    env_path = Path(__file__).parent / ".env"
     if env_path.exists():
         load_dotenv(dotenv_path=env_path)
 
     api_key = os.getenv("FIREWORKS_API_KEY", "")
-    username = os.getenv("username", "")
-    if not api_key or not username:
-        print_status(".env 설정", "FIREWORKS_API_KEY 또는 username 누락", "fail")
+    if not api_key:
+        print_status(".env 설정", "FIREWORKS_API_KEY 누락", "fail")
         exit(1)
 
     return {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "Accept": "application/json"
-    }, api_key, username
+    }, api_key
+
 
 # ────────────────────────────────
 # 🔹 상태 출력 헬퍼
@@ -114,21 +115,30 @@ def check_notify_platforms(pf_list):
             exit(1)
 
 # ────────────────────────────────
-# 🔹 .bat 자동 생성 + 즉시 실행
-# ────────────────────────────────
-def auto_create_and_run_bat(username):
-    startup_path = Path.home() / "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup"
-    bat_path = startup_path / "set_auto.bat"
-    bash_script = f"C:/Users/{username}/Desktop/git_auto/auto_git.sh"
+def register_task_scheduler():
+    task_name = "GitAutoWatcher"
+    username = getpass.getuser()
+    bash_path = "C:\\Program Files\\Git\\bin\\bash.exe"
+    sh_script = str(get_git_root() / "auto_git.sh").replace("/", "\\")
 
-    content = f"""@echo off
-start "" "C:\\Program Files\\Git\\bin\\bash.exe" --login -i "{bash_script}"
-"""
+    # 🛑 이미 등록된 경우 skip
+    check_cmd = f'schtasks /Query /TN {task_name}'
+    if subprocess.run(check_cmd, shell=True, capture_output=True).returncode == 0:
+        print_status("작업 스케줄러 등록", "이미 존재 → 생략", "ok")
+        return
 
-    bat_path.write_text(content, encoding="utf-8")
-    subprocess.Popen([str(bat_path)], shell=True)
-    print_status("set_auto.bat 생성 및 즉시 실행", f"{bat_path}", "ok")
+    # # ✅ 등록 명령
+    # cmd = (
+    #     f'schtasks /Create /SC ONLOGON '
+    #     f'/TN {task_name} /TR "\\"{bash_path}\\" --login -i \\"{sh_script}\\"" '
+    #     f'/F'
+    # )
 
+    # try:
+    #     subprocess.run(cmd, shell=True, check=True)
+    #     print_status("작업 스케줄러 등록", "성공", "ok")
+    # except Exception as e:
+    #     print_status("작업 스케줄러 등록 실패", str(e), "fail")
 # ────────────────────────────────
 # 🔹 Main 실행
 # ────────────────────────────────
@@ -136,18 +146,16 @@ def main():
     print("\n🔍 check_err: 자동화 사전 점검 및 설정 시작\n")
 
     global HEADERS
-    HEADERS, api_key, username = load_env_and_api_key()
+    HEADERS, api_key = load_env_and_api_key()
 
     check_git_user_config()
     enforce_git_core_config()
     ensure_required_files()
     check_git_repo()
     check_git_remote()
-
+    # register_task_scheduler()
     config = load_config()
     check_notify_platforms(config.get("noti_pf", []))
-
-    auto_create_and_run_bat(username)
 
     print("\n🎉 모든 점검 및 설정 완료. 자동화 준비 OK.\n")
 

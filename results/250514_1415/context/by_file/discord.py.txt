@@ -1,0 +1,84 @@
+### 📁 Repo 분석: git_auto_v2
+
+#### 📍 주요 기능
+1. **자동화 Git 프로세스**: VSCode 종료 시 자동으로 Git 작업을 수행하도록 설정되어 있음.
+2. **다양한 알림 및 연동 기능**: Discord, Gmail, Kakao, Slack, Notion 등 다양한 플랫폼과 연동하여 알림 전송 및 데이터 처리가 가능함.
+3. **AI 모델 연동**: GPT-4o, LLaMA 모델 등을 활용하여 작업을 처리하는 구조로 보임.
+
+#### 📄 파일 분석: notify/discord.py
+
+##### 🔍 역할
+- **Discord Webhook을 통한 알림 전송**: Git 작업 결과(성공/실패)와 커밋 메시지를 Discord로 전송하는 역할을 담당.
+
+##### 🔑 주요 로직
+1. **환경 변수 로드**:
+   - `.env` 파일에서 `DISCORD_WEBHOOK_URL`을 로드.
+   - `.env` 파일은 프로젝트 루트에 위치.
+
+2. **Webhook 상태 확인**:
+   - `ping()` 함수: Webhook URL이 유효한지 확인.
+   - 성공 시 "✅ [Ping 테스트] Discord Webhook 연결 성공" 메시지를 전송.
+
+3. **커밋 결과 알림 전송**:
+   - `send(commit_msg, status)` 함수:
+     - `commit_msg`: 커밋 메시지.
+     - `status`: 작업 상태 (`"success"` 또는 기타 값).
+   - 상태에 따라 "✅ Git Push 성공" 또는 "❌ Git Push 실패" 메시지를 전송.
+   - 현재 시간과 함께 커밋 메시지를 포함하여 전송.
+
+##### 💡 논리 분석
+1. **`ping()` 함수**:
+   - Webhook URL이 설정되지 않은 경우 `False` 반환.
+   - `requests.post()`를 통해 간단한 Ping 테스트 메시지를 전송하여 연결 상태를 확인.
+
+2. **`send()` 함수**:
+   - 상태(`status`)에 따라 Prefix를 설정하여 성공/실패 메시지를 구분.
+   - `commit_msg`를 포함하여 메시지를 구성하고 JSON 형태로 전송.
+
+3. **에러 처리**:
+   - 예외 발생 시 `False`를 반환하여 실패를 나타냄.
+
+#### 📝 요약
+- **`discord.py` 파일은 Git 작업 결과를 Discord로 알림 전송하는 역할을 수행**.
+- 주요 기능:
+  1. `.env`에서 Webhook URL 로드.
+  2. Webhook 상태 확인 (`ping()`).
+  3. 커밋 결과 및 메시지를 Discord로 전송 (`send()`).
+- **논리 구조**:
+  - Webhook URL 유효성 확인.
+  - 상태 기반 메시지 전송.
+  - 예외 처리 포함.
+
+#### 💻 코드 개선 제안
+1. **에러 로그 기록**:
+   - 예외 발생 시 로그 파일에 오류 내용을 기록하도록 추가하면 디버깅에 용이.
+
+2. **메시지 형식 확장**:
+   - 현재는 단순 텍스트 메시지 전송. Embed 메시지 형식으로 확장 가능.
+
+3. **환경 변수 검증 강화**:
+   - `.env` 파일이 없는 경우나 값이 누락된 경우에 대한 추가 경고 처리.
+
+#### 📚 문서화 제안
+```markdown
+## Discord 알림 모듈
+
+### 개요
+Git 작업 결과를 Discord로 전송하는 모듈.
+
+### 주요 함수
+1. **`ping()`**: Webhook 연결 상태를 확인.
+2. **`send(commit_msg, status)`**: 커밋 결과 및 메시지를 전송.
+
+### 사용 예시
+```python
+from notify.discord import send
+
+commit_msg = "feat: 자동화 스크립트 업데이트"
+status = "success"
+send(commit_msg, status)
+```
+
+### 환경 변수
+- `DISCORD_WEBHOOK_URL`: Discord Webhook URL.
+```

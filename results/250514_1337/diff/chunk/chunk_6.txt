@@ -1,0 +1,47 @@
+@@ -19,8 +20,6 @@ while true; do
+         was_alive=true
+     else
+         if [ "$was_alive" = true ]; then
+-            echo "🛑 VSCode 종료 감지됨"
+-
+             DIR=$(get_last_vscode_dir)
+ 
+             if [ -d "$DIR/.git" ]; then
+@@ -30,13 +29,13 @@ while true; do
+                 NAME=$(basename "$DIR")
+ 
+                 if [ "$ORIGIN" = "$NAME" ]; then
+-                    echo "✅ $DIR: 실행 조건 만족 → run_all.py 실행"
++                    echo "✅ $DIR: 실행 조건 만족 → run_all.py 실행 at $(date)" >> "$SCRIPT_DIR/logs/scr/trigger_debug.log"
+                     python "$PY_PATH"
+                 else
+-                    echo "⚠️ $DIR: origin 이름 불일치 → skip"
++                    echo "⚠️ $DIR: origin 이름 불일치 → skip" >> "$SCRIPT_DIR/logs/scr/trigger_debug.log"
+                 fi
+             else
+-                echo "❌ $DIR: .git 폴더 없음 → skip"
++                echo "❌ $DIR: .git 폴더 없음 → skip" >> "$SCRIPT_DIR/logs/scr/trigger_debug.log"
+             fi
+ 
+             was_alive=false
+diff --git a/scripts/commit.py b/scripts/commit.py
+index f109853..8c852be 100644
+--- a/scripts/commit.py
++++ b/scripts/commit.py
+@@ -1,16 +1,10 @@
+ from llm_router import call_llm
+ from pathlib import Path
+ 
+-# ─────────────────────────────────────
+-# 📄 프롬프트 로더 (스타일/언어 기반)
+-# ─────────────────────────────────────
+ def read_prompt_file(style: str, lang: str) -> str:
+     path = Path("prompt_by_style") / lang / f"{style}.txt"
+     return path.read_text(encoding="utf-8").strip()
+ 
+-# ─────────────────────────────────────
+-# 🚀 메인 함수
+-# ─────────────────────────────────────
+ def generate_commit_and_record(
+     diff_chunks: list[str],
+     repo_context: str,

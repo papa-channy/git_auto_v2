@@ -1,0 +1,56 @@
+@@ -1,8 +1,9 @@
+-import time
++import time, json, sys, shutil
+ from datetime import datetime
+-import json
+ from pathlib import Path
+-import shutil
++from pathlib import Path
++
++sys.path.append(str(Path(__file__).resolve().parent.parent))
+ 
+ from scripts.context import build_context
+ from scripts.diff import get_git_diff, split_diff_by_function
+@@ -21,17 +22,21 @@ def log(msg: str):
+         f.write(f"[{datetime.now().strftime('%H:%M')}] {msg.strip()}\n")
+ 
+ def load_config() -> dict:
+-    with open("config/llm.json", "r", encoding="utf-8") as f1, \
+-         open("config/style.json", "r", encoding="utf-8") as f2, \
+-         open("config/noti.json", "r", encoding="utf-8") as f3, \
+-         open("config/cost.json", "r", encoding="utf-8") as f4:
++    base_dir = Path(__file__).resolve().parent.parent / "config"
++    with open(base_dir / "llm.json", "r", encoding="utf-8") as f1, \
++         open(base_dir / "style.json", "r", encoding="utf-8") as f2, \
++         open(base_dir / "noti.json", "r", encoding="utf-8") as f3, \
++         open(base_dir / "cost.json", "r", encoding="utf-8") as f4:
++
++        style_cfg = json.load(f2)
+         return {
+-            "llm": json.load(f1),
+-            "style": json.load(f2)["style"],
+-            "lang": json.load(f2)["language"],
++            "llm": json.load(f1)["llm"],       # ✅ 내부 "llm" 키 추출
++            "style": style_cfg["style"],
++            "lang": style_cfg["language"],
+             "noti": json.load(f3),
+             "cost": json.load(f4)
+         }
++
+ def clear_repo_cache():
+     cache_txt = Path("logs/cache.txt")
+     if not cache_txt.exists():
+@@ -72,8 +77,11 @@ def clear_repo_cache():
+ 
+ 
+ 
+-def dynamic_sleep(prompts: dict, base=5, per_1000=2):
+-    total_chars = sum(len(v["text"]) for v in prompts.values())
++def dynamic_sleep(prompts: dict, base=7, per_1000=2):
++    total_chars = 0
++    for v in prompts.values():
++        if isinstance(v, dict) and "text" in v:
++            total_chars += len(v["text"])
+     est = base + (total_chars / 1000) * per_1000
+     sleep_time = max(round(est), base)
+     log(f"⏱ LLM 부하 완화 - {sleep_time}s sleep...")

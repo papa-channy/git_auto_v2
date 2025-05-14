@@ -33,7 +33,7 @@ def call(prompt: str, llm_param: dict) -> str:
 
     response = requests.post(
         "https://api.fireworks.ai/inference/v1/chat/completions",
-        headers=headers, json=payload, timeout=40
+        headers=headers, json=payload, timeout=60
     )
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"].strip()

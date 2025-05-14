@@ -1,0 +1,73 @@
+@@ -136,19 +146,17 @@ def main():
+     print("\n🔍 check_err: 자동화 사전 점검 및 설정 시작\n")
+ 
+     global HEADERS
+-    HEADERS, api_key, username = load_env_and_api_key()
++    HEADERS, api_key = load_env_and_api_key()
+ 
+     check_git_user_config()
+     enforce_git_core_config()
+     ensure_required_files()
+     check_git_repo()
+     check_git_remote()
+-
++    # register_task_scheduler()
+     config = load_config()
+     check_notify_platforms(config.get("noti_pf", []))
+ 
+-    auto_create_and_run_bat(username)
+-
+     print("\n🎉 모든 점검 및 설정 완료. 자동화 준비 OK.\n")
+ 
+ if __name__ == "__main__":
+diff --git a/config/kakao_token.json b/config/kakao_token.json
+index 926447e..77eda55 100644
+--- a/config/kakao_token.json
++++ b/config/kakao_token.json
+@@ -1,5 +1,5 @@
+ {
+-    "access_token": "t5yzfzAXqQ48H2JSlgIoy0DivwsWejCpAAAAAQoNDF4AAAGWy1-1p8TTXs9KIG_V",
++    "access_token": "7R3TqoEBFvxRWGcdYP-aRYyYs7vV2fK5AAAAAQoNFKMAAAGWzDhm4MTTXs9KIG_V",
+     "updated_at": "2025-05-14 12:00:00"
+   }
+   
+\ No newline at end of file
+diff --git a/config/llm.json b/config/llm.json
+index a500e9e..be34ae8 100644
+--- a/config/llm.json
++++ b/config/llm.json
+@@ -4,28 +4,28 @@
+         {
+             "provider": ["fireworks"],
+             "model": ["llama4-maverick-instruct-basic"],
+-            "temperature": 0.3,
++            "temperature": 0.5,
+             "top_p": 0.8,
+             "top_k": 40,
+-            "max_tokens": 512
++            "max_tokens": 8000
+         },
+         "global_context": 
+         {
+             "provider": ["openai"],
+             "model": ["gpt-4o"],
+-            "temperature": 0.6,
++            "temperature": 0.8,
+             "top_p": 0.9,
+             "top_k": 80,
+-            "max_tokens": 1024
++            "max_tokens": 4096
+         },
+         "commit_chunk": 
+         {
+             "provider": ["fireworks"],
+             "model": ["llama4-maverick-instruct-basic"],
+-            "temperature": 0.5,
++            "temperature": 0.7,
+             "top_p": 0.7,
+             "top_k": 40,
+-            "max_tokens": 512
++            "max_tokens": 4096
+         },
+         "commit_final": 
+         {

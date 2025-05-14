@@ -1,0 +1,63 @@
+### 📄 run_all.py 파일 요약
+
+#### **파일 역할**
+`run_all.py`는 `git_auto_v2` 저장소의 핵심 실행 파일입니다. 이 파일은 Git 저장소의 변경 사항을 자동으로 감지하고, 변경 내역을 분석하여 커밋 메시지를 생성하며, 다양한 알림 및 기록 작업을 수행합니다. 주요 기능은 Git 작업 자동화, LLM(Large Language Model)을 활용한 메시지 생성, 비용 계산, 알림 전송 등으로 구성됩니다.
+
+#### **주요 로직**
+1. **초기 설정 및 로그 관리**
+   - 로그 디렉토리 생성 및 로그 기록 함수(`log`) 정의.
+   - 설정 파일(`llm.json`, `style.json`, `noti.json`, `cost.json`) 로드.
+
+2. **캐시 정리**
+   - 주기적으로 저장소 캐시 정리(`clear_repo_cache` 함수).
+
+3. **컨텍스트 요약 생성**
+   - `build_context` 함수를 호출하여 저장소 컨텍스트 요약 생성.
+
+4. **Git Diff 분석**
+   - `get_git_diff`로 Git 변경 내역 추출.
+   - `split_diff_by_function`으로 변경 내역을 함수 단위로 분리.
+
+5. **커밋 메시지 및 기록 메시지 생성**
+   - `generate_commit_and_record`로 커밋 메시지 및 기록 메시지 생성.
+
+6. **LLM 호출 안정화**
+   - `dynamic_sleep` 함수로 LLM 호출 간 딜레이 적용.
+
+7. **비용 계산**
+   - `calculate_llm_costs`로 LLM 사용 비용 계산 및 요약.
+
+8. **메시지 분류 및 작업 수행**
+   - 생성된 메시지를 Git 커밋 메시지, 알림 메시지, 기록 메시지로 분류.
+   - `do_git_commit`으로 Git 커밋 실행.
+   - `send_notification`으로 알림 전송.
+   - `write_records`로 기록 업로드.
+
+#### **논리 구조**
+1. **모듈화 및 경로 설정**
+   - `sys.path`에 `scripts` 모듈 경로 추가.
+   - 주요 디렉토리 경로 설정 (`ROOT`, `CONFIG_DIR`, `LOG_DIR`, `CACHE_PATH`).
+
+2. **설정 로드 및 로그 초기화**
+   - 설정 파일 로드 (`llm.json`, `style.json`, `noti.json`, `cost.json`).
+   - 로그 파일 경로 설정 및 로그 기록 함수 정의.
+
+3. **주요 작업 흐름**
+   - 컨텍스트 요약 생성.
+   - Git Diff 분석 및 변경 내역 분리.
+   - 커밋 메시지 및 기록 메시지 생성.
+   - LLM 호출 후 딜레이 적용.
+   - 비용 계산 및 메시지 생성.
+   - 메시지 분류 및 Git 커밋, 알림 전송, 기록 작성 수행.
+
+4. **보조 기능**
+   - 캐시 정리 (`clear_repo_cache`).
+   - 동적 슬립 (`dynamic_sleep`)을 통한 LLM 부하 관리.
+
+#### **핵심 구성 요소**
+- **설정 파일**: `llm.json`, `style.json`, `noti.json`, `cost.json`
+- **주요 함수**: `build_context`, `get_git_diff`, `generate_commit_and_record`, `dynamic_sleep`, `calculate_llm_costs`, `do_git_commit`, `send_notification`, `write_records`
+- **로그 및 캐시 관리**: 로그 기록, 주기적 캐시 정리
+
+#### **의의**
+`run_all.py`는 Git 자동화 작업의 중심 파일로, 변경 내역 분석, 메시지 생성, 알림 및 기록 작업을 통합적으로 관리합니다. 모듈화된 함수들과 체계적인 로그 및 캐시 관리로 효율적인 자동화 프로세스를 제공합니다.

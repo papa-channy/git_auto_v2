@@ -1,0 +1,115 @@
+@@ -14,10 +12,7 @@ def do_git_commit(commit_msg: str) -> bool:
+     except subprocess.CalledProcessError:
+         return False
+ 
+-# ─────────────────────────────
+-# 📤 알림 플랫폼 전송
+-# ─────────────────────────────
+-def send_notification(platforms: list[str], messages: list[str]):
++def send_notification(platforms: list[str], messages: list[str], log):
+     for platform in platforms:
+         for msg in messages:
+             try:
+@@ -30,19 +25,20 @@ def send_notification(platforms: list[str], messages: list[str]):
+                 elif platform == "slack":
+                     slack.send(msg)
+             except Exception as e:
+-                print(f"[ERROR] {platform} 알림 실패: {e}")
++                log(f"[ERROR] {platform} 알림 실패: {e}")
++
++def write_records(platforms: list[str], messages: list[str], log):
++    context, chunk_summary, record_msg = messages
++    repo_name = get_repo_name()
+ 
+-# ─────────────────────────────
+-# 📝 기록 플랫폼 전송
+-# ─────────────────────────────
+-def write_records(platforms: list[str], messages: list[str]):
+     for platform in platforms:
+         try:
+             if platform == "notion":
+-                notion.send(messages)
++                notion.upload_date_based_record(context, chunk_summary, record_msg)
++                notion.upload_sequential_record(repo_name, [record_msg])
+             elif platform == "google_drive":
+                 google_drive.send(messages)
+             elif platform == "slack":
+-                slack.send("\n\n".join(messages))  # 기록용은 묶어서 전송
++                slack.send("\n\n".join(messages))
+         except Exception as e:
+-            print(f"[ERROR] {platform} 기록 실패: {e}")
++            log(f"[ERROR] {platform} 기록 실패: {e}")
+diff --git a/utils/path.py b/utils/path.py
+index 9c0c959..cb1b3ec 100644
+--- a/utils/path.py
++++ b/utils/path.py
+@@ -1,38 +1,46 @@
+ from pathlib import Path
+ from datetime import datetime
++import subprocess
++def get_repo_name() -> str:
++    url = subprocess.run("git config --get remote.origin.url", shell=True, capture_output=True, text=True).stdout.strip()
++    return url.rstrip(".git").split("/")[-1].replace("-", " ").title() if url else "Unknown Repo"
+ 
++# 🔍 Git 루트 경로 탐지
++def get_git_root() -> Path:
++    try:
++        root = subprocess.run(
++            ["git", "rev-parse", "--show-toplevel"],
++            check=True, capture_output=True, text=True
++        ).stdout.strip()
++        return Path(root)
++    except subprocess.CalledProcessError:
++        return Path.cwd()
++
++# 📁 결과 경로 생성기
+ def get_result_paths(timestamp: str) -> dict:
+-    """
+-    실행 기준 타임스탬프에 따라 결과 저장용 경로를 생성하고 반환합니다.
+-    반환 구조는 dict로 각 결과 타입별 저장 경로를 포함합니다.
+-    """
+     dt = datetime.strptime(timestamp, "%Y%m%d_%H%M")
+     date_key = dt.strftime("%y%m%d_%H%M")
+-    result_base = Path("results") / date_key
++    base = get_git_root() / "results" / date_key
+ 
+     paths = {
+-        "base": result_base,
+-        "context_by_file": result_base / "context" / "by_file",
+-        "context_summary": result_base / "context" / "sum" / "summary.txt",
+-        "diff_chunks": result_base / "diff" / "chunk",
+-        "diff_final": result_base / "diff" / "sum" / "commit.txt",
+-        "final_commit": result_base / "final" / "commit.txt",
+-        "final_record": result_base / "final" / "record.txt",
++        "base": base,
++        "context_by_file": base / "context" / "by_file",
++        "context_summary": base / "context" / "sum" / "summary.txt",
++        "diff_chunks": base / "diff" / "chunk",
++        "diff_final": base / "diff" / "sum" / "commit.txt",
++        "final_commit": base / "final" / "commit.txt",
++        "final_record": base / "final" / "record.txt",
+     }
+ 
+-    # 디렉토리 생성
+     for key, path in paths.items():
+         if key.startswith("context") or key.startswith("diff") or key.startswith("final"):
+             path.parent.mkdir(parents=True, exist_ok=True)
+ 
+     return paths
+ 
++# 📊 LLM 비용 로그 경로
+ def get_cost_log_path(timestamp: str) -> Path:
+-    """
+-    LLM 호출 로그를 저장할 cost 경로 반환
+-    ex: cost/250514_1810/llm_20240514_1810.jsonl
+-    """
+     dt = datetime.strptime(timestamp, "%Y%m%d_%H%M")
+-    base = Path("cost") / dt.strftime("%y%m%d_%H%M")
++    base = get_git_root() / "cost" / dt.strftime("%y%m%d_%H%M")
+     base.mkdir(parents=True, exist_ok=True)
+     return base / f"llm_{timestamp}.jsonl"
+diff --git a/utils/set_auto.bat b/utils/set_auto.bat
+deleted file mode 100644
+index a66e94d..0000000
+--- a/utils/set_auto.bat
++++ /dev/null

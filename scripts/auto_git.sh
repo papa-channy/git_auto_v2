@@ -1,16 +1,17 @@
 #!/bin/bash
 
-# 🔧 경로 설정
-PY_PATH="$HOME/git_auto/scripts/run_all.py"
-LAST_DIR_TRACK="$HOME/.last_vscode_dir.txt"
+# 🔧 동적 경로 설정
+SCRIPT_DIR="$(dirname "$0")"
+PY_PATH="$SCRIPT_DIR/run_all.py"
 STORAGE_FILE="$APPDATA/Code/storage.json"
 
 was_alive=true
 
-# 📁 VSCode에서 마지막으로 연 폴더 추출
 get_last_vscode_dir() {
     grep -oE '"file://[^"]+"' "$STORAGE_FILE" | head -1 | sed 's|"file://||' | sed 's|"||'
 }
+
+echo "✅ auto_git.sh launched at $(date)" >> logs/scr/trigger_debug.log
 
 while true; do
     sleep 10
@@ -19,8 +20,6 @@ while true; do
         was_alive=true
     else
         if [ "$was_alive" = true ]; then
-            echo "🛑 VSCode 종료 감지됨"
-
             DIR=$(get_last_vscode_dir)
 
             if [ -d "$DIR/.git" ]; then
@@ -30,13 +29,13 @@ while true; do
                 NAME=$(basename "$DIR")
 
                 if [ "$ORIGIN" = "$NAME" ]; then
-                    echo "✅ $DIR: 실행 조건 만족 → run_all.py 실행"
+                    echo "✅ $DIR: 실행 조건 만족 → run_all.py 실행 at $(date)" >> "$SCRIPT_DIR/logs/scr/trigger_debug.log"
                     python "$PY_PATH"
                 else
-                    echo "⚠️ $DIR: origin 이름 불일치 → skip"
+                    echo "⚠️ $DIR: origin 이름 불일치 → skip" >> "$SCRIPT_DIR/logs/scr/trigger_debug.log"
                 fi
             else
-                echo "❌ $DIR: .git 폴더 없음 → skip"
+                echo "❌ $DIR: .git 폴더 없음 → skip" >> "$SCRIPT_DIR/logs/scr/trigger_debug.log"
             fi
 
             was_alive=false

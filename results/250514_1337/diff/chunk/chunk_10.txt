@@ -1,0 +1,98 @@
+@@ -14,26 +14,34 @@ from utils.path import get_cost_log_path, get_result_paths
+ # 환율 처리 (하루 1회만 크롤링)
+ # ─────────────────────────────────────────────
+ def get_usd_exchange_rate(log) -> float:
+-    ex_file = Path("cost/ex_rate.txt")
+-    today = datetime.now().strftime("%Y-%m-%d")
+-
+-    if ex_file.exists():
+-        last_modified = datetime.fromtimestamp(ex_file.stat().st_mtime).strftime("%Y-%m-%d")
+-        if last_modified == today:
+-            log("💱 환율 캐시 사용")
+-            return float(ex_file.read_text().strip())
++    ex_path = Path("cost/ex_rate.txt")
++    fallback = 1400.0
+ 
+     try:
+-        res = requests.get("https://finance.naver.com/marketindex/")
+-        soup = BeautifulSoup(res.text, "html.parser")
+-        price = soup.select_one("div.head_info > span.value").text
+-        rate = float(price.replace(",", ""))
+-        ex_file.write_text(str(rate))
+-        log(f"📈 실시간 환율 업데이트: {rate} 원/USD")
++        # 📌 파일이 있고 24시간 이내면 캐시 사용
++        if ex_path.exists():
++            last_modified = datetime.fromtimestamp(ex_path.stat().st_mtime)
++            if datetime.now() - last_modified < timedelta(hours=24):
++                content = ex_path.read_text().strip()
++                if content:
++                    return float(content)
++
++        # 📡 웹 크롤링 시도
++        log("🌐 환율 정보 새로 요청 중...")
++        url = "https://finance.naver.com/marketindex/"
++        html = requests.get(url, timeout=5).text
++        soup = BeautifulSoup(html, "html.parser")
++        rate_text = soup.select_one("div.head_info > span.value").text
++        rate = float(rate_text.replace(",", ""))
++
++        # 💾 캐싱
++        ex_path.parent.mkdir(parents=True, exist_ok=True)
++        ex_path.write_text(str(rate), encoding="utf-8")
+         return rate
+-    except:
+-        log("⚠️ 환율 크롤링 실패, 이전 환율 또는 기본값 사용")
+-        return float(ex_file.read_text().strip()) if ex_file.exists() else 1400.0
++
++    except Exception as e:
++        log(f"⚠️ 환율 정보 가져오기 실패: {e} → fallback {fallback}")
++        return fallback
+ 
+ # ─────────────────────────────────────────────
+ # 토큰 계산기
+diff --git a/scripts/run_all.py b/scripts/run_all.py
+index 2e93557..741598e 100644
+--- a/scripts/run_all.py
++++ b/scripts/run_all.py
+@@ -1,8 +1,9 @@
+-import time
++import time, json, sys, shutil
+ from datetime import datetime
+-import json
+ from pathlib import Path
+-import shutil
++from pathlib import Path
++
++sys.path.append(str(Path(__file__).resolve().parent.parent))
+ 
+ from scripts.context import build_context
+ from scripts.diff import get_git_diff, split_diff_by_function
+@@ -21,17 +22,21 @@ def log(msg: str):
+         f.write(f"[{datetime.now().strftime('%H:%M')}] {msg.strip()}\n")
+ 
+ def load_config() -> dict:
+-    with open("config/llm.json", "r", encoding="utf-8") as f1, \
+-         open("config/style.json", "r", encoding="utf-8") as f2, \
+-         open("config/noti.json", "r", encoding="utf-8") as f3, \
+-         open("config/cost.json", "r", encoding="utf-8") as f4:
++    base_dir = Path(__file__).resolve().parent.parent / "config"
++    with open(base_dir / "llm.json", "r", encoding="utf-8") as f1, \
++         open(base_dir / "style.json", "r", encoding="utf-8") as f2, \
++         open(base_dir / "noti.json", "r", encoding="utf-8") as f3, \
++         open(base_dir / "cost.json", "r", encoding="utf-8") as f4:
++
++        style_cfg = json.load(f2)
+         return {
+-            "llm": json.load(f1),
+-            "style": json.load(f2)["style"],
+-            "lang": json.load(f2)["language"],
++            "llm": json.load(f1)["llm"],       # ✅ 내부 "llm" 키 추출
++            "style": style_cfg["style"],
++            "lang": style_cfg["language"],
+             "noti": json.load(f3),
+             "cost": json.load(f4)
+         }
++
+ def clear_repo_cache():
+     cache_txt = Path("logs/cache.txt")
+     if not cache_txt.exists():

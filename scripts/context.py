@@ -55,10 +55,9 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
     for path in valid_files:
         try:
             code = path.read_text(encoding="utf-8").strip()
+            if not code:
+                continue
         except:
-            continue
-
-        if not code:
             continue
 
         prompt = f"""당신은 Git Repo 전체를 분석하여, Commit 메시지 생성 및 기술 문서 작성을 도울 요약 전문가입니다.
@@ -76,11 +75,20 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
 {code}
 
 이 파일의 이름, Repo의 폴더 구조, 파일내용을 기반으로
-해당 파일의 Repo내 역할, 로직, 로직의 논리를 분석하여 요약해주세요.
+- 파일의 역할과 책임
+- 포함된 로직 요약
+- 이 파일이 다른 구성과 어떻게 연결되는지
+- 핵심 로직과 기능(너무 길지 않게)
+
+전체 답변은 반드시 **500자 이내**로 작성해주세요!!
 """
 
         var_name = f"a{a_index}"
-        prompt_vars[var_name] = prompt
+        prompt_vars[var_name] = {
+            "text": prompt,
+            "model": llm_file_cfg["model"][0],
+            "purpose": "summary"
+        }
         a_index += 1
 
         try:
@@ -89,7 +97,6 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
 
             save_path = paths["context_by_file"] / f"{path.name}.txt"
             save_path.write_text(summary.strip(), encoding="utf-8")
-
         except Exception as e:
             log(f"❌ 파일 요약 실패 - {path} / {e}")
 
@@ -120,14 +127,18 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
 - 주요 파일 및 핵심 로직
 - 설계 철학이나 아키텍처 특징
 """
-    prompt_vars["b"] = b
+
+    prompt_vars["b"] = {
+        "text": b,
+        "model": llm_repo_cfg["model"][0],
+        "purpose": "global_context"
+    }
 
     try:
         final_summary = call_llm(b, llm_repo_cfg)
         Path(paths["context_summary"]).write_text(final_summary.strip(), encoding="utf-8")
         log("✅ 전체 레포 요약 완료")
         return final_summary.strip(), prompt_vars
-
     except Exception as e:
         log(f"❌ 전체 레포 요약 실패: {e}")
         return "", prompt_vars

@@ -1,0 +1,58 @@
+@@ -34,7 +34,7 @@
+             "temperature": 0.7,
+             "top_p": 0.95,
+             "top_k": 100,
+-            "max_tokens": 768
++            "max_tokens": 2048
+         },
+         "record": 
+         {
+diff --git a/llm/llm_router.py b/llm/llm_router.py
+deleted file mode 100644
+index c7b7bbd..0000000
+--- a/llm/llm_router.py
++++ /dev/null
+@@ -1,30 +0,0 @@
+-def call_llm():
+-    # LLM 호출을 위한 설정
+-    llm_config = {
+-        "model": "gpt-3.5-turbo",
+-        "temperature": 0.7,
+-        "max_tokens": 1500,
+-        "top_p": 1.0,
+-        "frequency_penalty": 0.0,
+-        "presence_penalty": 0.0
+-    }
+-    
+-    # LLM 파라미터 설정
+-    llm_param = {
+-        "prompt": "Your prompt here",
+-        "model": llm_config["model"],
+-        "temperature": llm_config["temperature"],
+-        "max_tokens": llm_config["max_tokens"],
+-        "top_p": llm_config["top_p"],
+-        "frequency_penalty": llm_config["frequency_penalty"],
+-        "presence_penalty": llm_config["presence_penalty"]
+-    }
+-    
+-    # LLM 호출
+-    try:
+-        response = some_llm_api_call(llm_param)  # 실제 LLM API 호출 함수로 대체
+-        return response
+-    except Exception as e:
+-        print(f"LLM 호출 실패: {e}")
+-
+-    return None
+diff --git a/logs/cache.txt b/logs/cache.txt
+index 2edeafb..da2d398 100644
+--- a/logs/cache.txt
++++ b/logs/cache.txt
+@@ -1 +1 @@
+-20
+\ No newline at end of file
++14
+\ No newline at end of file
+diff --git a/prompt_by_style/ko/doc_writing.txt b/prompt_by_style/ko/doc_writing.txt
+index bedf5fb..53a4bdc 100644
+--- a/prompt_by_style/ko/doc_writing.txt
++++ b/prompt_by_style/ko/doc_writing.txt

@@ -1,0 +1,57 @@
+@@ -1,10 +1,8 @@
+ import subprocess
+ from notify import discord, gmail, kakao, slack
+ from record import notion, google_drive
++from utils.path import get_repo_name
+ 
+-# ─────────────────────────────
+-# 🔼 Git commit & push
+-# ─────────────────────────────
+ def do_git_commit(commit_msg: str) -> bool:
+     try:
+         subprocess.run(["git", "add", "."], check=True)
+@@ -14,10 +12,7 @@ def do_git_commit(commit_msg: str) -> bool:
+     except subprocess.CalledProcessError:
+         return False
+ 
+-# ─────────────────────────────
+-# 📤 알림 플랫폼 전송
+-# ─────────────────────────────
+-def send_notification(platforms: list[str], messages: list[str]):
++def send_notification(platforms: list[str], messages: list[str], log):
+     for platform in platforms:
+         for msg in messages:
+             try:
+@@ -30,19 +25,20 @@ def send_notification(platforms: list[str], messages: list[str]):
+                 elif platform == "slack":
+                     slack.send(msg)
+             except Exception as e:
+-                print(f"[ERROR] {platform} 알림 실패: {e}")
++                log(f"[ERROR] {platform} 알림 실패: {e}")
++
++def write_records(platforms: list[str], messages: list[str], log):
++    context, chunk_summary, record_msg = messages
++    repo_name = get_repo_name()
+ 
+-# ─────────────────────────────
+-# 📝 기록 플랫폼 전송
+-# ─────────────────────────────
+-def write_records(platforms: list[str], messages: list[str]):
+     for platform in platforms:
+         try:
+             if platform == "notion":
+-                notion.send(messages)
++                notion.upload_date_based_record(context, chunk_summary, record_msg)
++                notion.upload_sequential_record(repo_name, [record_msg])
+             elif platform == "google_drive":
+                 google_drive.send(messages)
+             elif platform == "slack":
+-                slack.send("\n\n".join(messages))  # 기록용은 묶어서 전송
++                slack.send("\n\n".join(messages))
+         except Exception as e:
+-            print(f"[ERROR] {platform} 기록 실패: {e}")
++            log(f"[ERROR] {platform} 기록 실패: {e}")
+diff --git a/utils/path.py b/utils/path.py
+index 9c0c959..cb1b3ec 100644
+--- a/utils/path.py
++++ b/utils/path.py

@@ -1,0 +1,84 @@
+@@ -1,10 +1,8 @@
+-아래 {change}에 해당하는 코드 변경 내용을 바탕으로, 개인용 또는 내부 프로젝트에 적합한 간결하고 핵심적인 Git commit 메시지를 작성하세요.
+-
+-메시지에는 다음 요소를 포함해주세요:
++먼저 한 줄~두 줄로 요약되는 제목(요약문)을 작성하고, 그 아래 본문에 다음 요소들을 포함해주세요:
+ - 변경된 내용을 한 줄로 요약한 제목
+ - 필요한 경우, 왜 이 변경이 필요했는지를 간략히 설명
+ - 미래에 이 변경을 다시 보게 될 상황을 고려해 기억해두어야 할 기술적 의도나 맥락
+ 
+ Commit 메시지는 최대한 간결하게 작성하되, 전체 코드를 다시 읽지 않고도 변경의 목적과 의도를 파악할 수 있도록 명확하게 표현해주세요.
+ 모든 답변은 반드시 한국어를 기반으로 작성해주세요.  
+-특히 설명과 요약 설계의도를 한글로 써주세요.(코드파트 제외,코드 함수명 및 전문용어 제외)
+\ No newline at end of file
++특히 설명과 요약 설계의도를 한글로 써주세요.(코드파트 제외,코드 함수명 및 전문용어 제외)
+diff --git a/record/notion.py b/record/notion.py
+index 820a9f5..f9e659c 100644
+--- a/record/notion.py
++++ b/record/notion.py
+@@ -24,8 +24,12 @@ NUM_EMOJIS = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪',
+ 
+ def get_repo_name():
+     import subprocess
+-    url = subprocess.run("git config --get remote.origin.url", shell=True, capture_output=True, text=True).stdout.strip()
+-    return url.rstrip(".git").split("/")[-1].replace("-", " ").title() if url else "Unknown Repo"
++    try:
++        url = subprocess.run("git config --get remote.origin.url", shell=True, capture_output=True, text=True).stdout.strip()
++        repo = url.rstrip(".git").split("/")[-1] if url else "Unknown"
++        return repo.replace("-", " ").title()
++    except Exception:
++        return "Unknown Repo"
+ 
+ def get_notion_blocks(parent_id):
+     url = f"{NOTION_URL_BASE}/blocks/{parent_id}/children?page_size=100"
+@@ -34,33 +38,40 @@ def get_notion_blocks(parent_id):
+     return resp.json().get("results", [])
+ 
+ def find_or_create_toggle_block(parent_id, title_text):
+-    children = get_notion_blocks(parent_id)
+-    for block in children:
+-        if block["type"] == "toggle" and \
+-           block["toggle"]["rich_text"][0]["text"]["content"] == title_text:
+-            return block["id"]
++    try:
++        children = get_notion_blocks(parent_id)
++        for block in children:
++            if block["type"] == "toggle" and \
++               block["toggle"]["rich_text"][0]["text"]["content"] == title_text:
++                return block["id"]
++    except Exception:
++        pass
++
+     payload = {
+         "children": [{
+             "object": "block",
+             "type": "toggle",
+             "toggle": {
+-                "rich_text": [{"type": "text", "text": { "content": title_text }}],
++                "rich_text": [{"type": "text", "text": {"content": title_text}}],
+                 "children": []
+             }
+         }]
+     }
++
+     resp = requests.patch(f"{NOTION_URL_BASE}/blocks/{parent_id}/children", headers=HEADERS, json=payload)
+     resp.raise_for_status()
+     return resp.json()["results"][0]["id"]
+ 
+-def create_paragraph_block(title, text):
++def create_paragraph_block(title: str, text: str):
++    full_text = f"{title}\n\n{text}" if title else text
+     return {
+         "object": "block",
+         "type": "paragraph",
+         "paragraph": {
+-            "rich_text": [
+-                { "type": "text", "text": { "content": f"{title}\n\n{text}" } }
+-            ],
++            "rich_text": [{
++                "type": "text",
++                "text": { "content": full_text }
++            }],
+             "color": random.choice(COLORS)
+         }
+     }

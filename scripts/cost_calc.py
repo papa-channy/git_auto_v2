@@ -3,9 +3,9 @@ import math
 import pandas as pd
 import tiktoken
 import requests
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from pathlib import Path
-from datetime import datetime
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from utils.path import get_cost_log_path, get_result_paths
@@ -14,26 +14,34 @@ from utils.path import get_cost_log_path, get_result_paths
 # 환율 처리 (하루 1회만 크롤링)
 # ─────────────────────────────────────────────
 def get_usd_exchange_rate(log) -> float:
-    ex_file = Path("cost/ex_rate.txt")
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    if ex_file.exists():
-        last_modified = datetime.fromtimestamp(ex_file.stat().st_mtime).strftime("%Y-%m-%d")
-        if last_modified == today:
-            log("💱 환율 캐시 사용")
-            return float(ex_file.read_text().strip())
+    ex_path = Path("cost/ex_rate.txt")
+    fallback = 1400.0
 
     try:
-        res = requests.get("https://finance.naver.com/marketindex/")
-        soup = BeautifulSoup(res.text, "html.parser")
-        price = soup.select_one("div.head_info > span.value").text
-        rate = float(price.replace(",", ""))
-        ex_file.write_text(str(rate))
-        log(f"📈 실시간 환율 업데이트: {rate} 원/USD")
+        # 📌 파일이 있고 24시간 이내면 캐시 사용
+        if ex_path.exists():
+            last_modified = datetime.fromtimestamp(ex_path.stat().st_mtime)
+            if datetime.now() - last_modified < timedelta(hours=24):
+                content = ex_path.read_text().strip()
+                if content:
+                    return float(content)
+
+        # 📡 웹 크롤링 시도
+        log("🌐 환율 정보 새로 요청 중...")
+        url = "https://finance.naver.com/marketindex/"
+        html = requests.get(url, timeout=5).text
+        soup = BeautifulSoup(html, "html.parser")
+        rate_text = soup.select_one("div.head_info > span.value").text
+        rate = float(rate_text.replace(",", ""))
+
+        # 💾 캐싱
+        ex_path.parent.mkdir(parents=True, exist_ok=True)
+        ex_path.write_text(str(rate), encoding="utf-8")
         return rate
-    except:
-        log("⚠️ 환율 크롤링 실패, 이전 환율 또는 기본값 사용")
-        return float(ex_file.read_text().strip()) if ex_file.exists() else 1400.0
+
+    except Exception as e:
+        log(f"⚠️ 환율 정보 가져오기 실패: {e} → fallback {fallback}")
+        return fallback
 
 # ─────────────────────────────────────────────
 # 토큰 계산기

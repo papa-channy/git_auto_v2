@@ -1,0 +1,150 @@
+@@ -34,33 +38,40 @@ def get_notion_blocks(parent_id):
+     return resp.json().get("results", [])
+ 
+ def find_or_create_toggle_block(parent_id, title_text):
+-    children = get_notion_blocks(parent_id)
+-    for block in children:
+-        if block["type"] == "toggle" and \
+-           block["toggle"]["rich_text"][0]["text"]["content"] == title_text:
+-            return block["id"]
++    try:
++        children = get_notion_blocks(parent_id)
++        for block in children:
++            if block["type"] == "toggle" and \
++               block["toggle"]["rich_text"][0]["text"]["content"] == title_text:
++                return block["id"]
++    except Exception:
++        pass
++
+     payload = {
+         "children": [{
+             "object": "block",
+             "type": "toggle",
+             "toggle": {
+-                "rich_text": [{"type": "text", "text": { "content": title_text }}],
++                "rich_text": [{"type": "text", "text": {"content": title_text}}],
+                 "children": []
+             }
+         }]
+     }
++
+     resp = requests.patch(f"{NOTION_URL_BASE}/blocks/{parent_id}/children", headers=HEADERS, json=payload)
+     resp.raise_for_status()
+     return resp.json()["results"][0]["id"]
+ 
+-def create_paragraph_block(title, text):
++def create_paragraph_block(title: str, text: str):
++    full_text = f"{title}\n\n{text}" if title else text
+     return {
+         "object": "block",
+         "type": "paragraph",
+         "paragraph": {
+-            "rich_text": [
+-                { "type": "text", "text": { "content": f"{title}\n\n{text}" } }
+-            ],
++            "rich_text": [{
++                "type": "text",
++                "text": { "content": full_text }
++            }],
+             "color": random.choice(COLORS)
+         }
+     }
+@@ -73,33 +84,46 @@ def upload_date_based_record(context: str, chunk_summary: str, record_msg: str):
+     mid_toggle = f"📅 {now.strftime('%y년 %m월')}"
+     time_toggle = f"🕒 {now.strftime('%d일 %p %I시 %M분').replace('AM', '오전').replace('PM', '오후')}"
+ 
+-    top_id = find_or_create_toggle_block(NOTION_PAGE_ID, top_toggle)
+-    mid_id = find_or_create_toggle_block(top_id, mid_toggle)
+-    time_id = find_or_create_toggle_block(mid_id, time_toggle)
++    try:
++        top_id = find_or_create_toggle_block(NOTION_PAGE_ID, top_toggle)
++        mid_id = find_or_create_toggle_block(top_id, mid_toggle)
++        time_id = find_or_create_toggle_block(mid_id, time_toggle)
+ 
+-    blocks = [
+-        create_paragraph_block("📘 전체 맥락", context),
+-        create_paragraph_block("📂 커밋 요약", chunk_summary),
+-        create_paragraph_block("📝 집필용 기록", record_msg)
+-    ]
+-    requests.patch(f"{NOTION_URL_BASE}/blocks/{time_id}/children", headers=HEADERS, json={ "children": blocks })
++        blocks = [
++            create_paragraph_block("📘 전체 맥락", context),
++            create_paragraph_block("📂 커밋 요약", chunk_summary),
++            create_paragraph_block("📝 집필용 기록", record_msg)
++        ]
++        requests.patch(
++            f"{NOTION_URL_BASE}/blocks/{time_id}/children",
++            headers=HEADERS,
++            json={"children": blocks}
++        )
++    except Exception as e:
++        print(f"[NOTION] ❌ 날짜 기반 기록 업로드 실패: {e}")
+ 
+-# ✅ 집필용 모음 업로드 (순차 이모지)
++# ✅ 집필용 모음 업로드
+ def upload_sequential_record(repo_name: str, record_msgs: list[str]):
+-    top = "📘 집필용 기록 모음"
+-    top_id = find_or_create_toggle_block(NOTION_PAGE_ID, top)
+-    repo_id = find_or_create_toggle_block(top_id, f"📘 Repo명 : {repo_name}")
+-
+-    children = []
+-    for i, msg in enumerate(record_msgs):
+-        label = NUM_EMOJIS[i % len(NUM_EMOJIS)]
+-        children.append({
+-            "object": "block",
+-            "type": "toggle",
+-            "toggle": {
+-                "rich_text": [{ "type": "text", "text": { "content": label } }],
+-                "children": [create_paragraph_block("", msg)]
+-            }
+-        })
++    try:
++        top_id = find_or_create_toggle_block(NOTION_PAGE_ID, "📘 집필용 기록 모음")
++        repo_id = find_or_create_toggle_block(top_id, f"📘 Repo명 : {repo_name}")
++
++        children = []
++        for i, msg in enumerate(record_msgs):
++            label = NUM_EMOJIS[i % len(NUM_EMOJIS)]
++            children.append({
++                "object": "block",
++                "type": "toggle",
++                "toggle": {
++                    "rich_text": [{"type": "text", "text": {"content": label}}],
++                    "children": [create_paragraph_block("", msg)]
++                }
++            })
+ 
+-    requests.patch(f"{NOTION_URL_BASE}/blocks/{repo_id}/children", headers=HEADERS, json={ "children": children })
++        requests.patch(
++            f"{NOTION_URL_BASE}/blocks/{repo_id}/children",
++            headers=HEADERS,
++            json={"children": children}
++        )
++    except Exception as e:
++        print(f"[NOTION] ❌ 집필용 기록 모음 업로드 실패: {e}")
+diff --git a/scripts/auto_git.sh b/scripts/auto_git.sh
+index 09d93a2..0fabe1c 100644
+--- a/scripts/auto_git.sh
++++ b/scripts/auto_git.sh
+@@ -1,17 +1,18 @@
+ #!/bin/bash
+ 
+-# 🔧 경로 설정
+-PY_PATH="$HOME/git_auto/scripts/run_all.py"
+-LAST_DIR_TRACK="$HOME/.last_vscode_dir.txt"
++# 🔧 동적 경로 설정
++SCRIPT_DIR="$(dirname "$0")"
++PY_PATH="$SCRIPT_DIR/scripts/run_all.py"
+ STORAGE_FILE="$APPDATA/Code/storage.json"
+ 
+ was_alive=true
+ 
+-# 📁 VSCode에서 마지막으로 연 폴더 추출
+ get_last_vscode_dir() {
+     grep -oE '"file://[^"]+"' "$STORAGE_FILE" | head -1 | sed 's|"file://||' | sed 's|"||'
+ }
+ 
++echo "✅ auto_git.sh launched at $(date)" >> logs/scr/trigger_debug.log
++
+ while true; do
+     sleep 10

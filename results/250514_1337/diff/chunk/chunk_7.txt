@@ -1,0 +1,74 @@
+@@ -23,7 +17,7 @@ def generate_commit_and_record(
+ ):
+     log("✏️ [Commit] 청크별 커밋 메시지 생성 시작")
+ 
+-    # 🔧 프롬프트 스타일 불러오기
++    # 🔧 프롬프트 로딩
+     commit_chunk_txt = read_prompt_file(style_cfg["commit_chunk"], lang_cfg["commit"])
+     final_commit_txt = read_prompt_file(style_cfg["commit_final"], lang_cfg["commit"])
+     record_prompt_txt = read_prompt_file(style_cfg["record"], lang_cfg["record"])
+@@ -32,24 +26,24 @@ def generate_commit_and_record(
+     prompt_vars = {}
+     c_index = 1
+ 
+-    # ────────────────────────────────
+-    # 🔹 청크별 커밋 메시지 생성
+-    # ────────────────────────────────
+     for chunk in diff_chunks:
+-        prompt = f"""
+-아래는 Git 레포의 전체 맥락 요약과 변경된 diff chunk입니다.
++        prompt = f"""아래는 Git 레포의 전체 맥락 요약과 변경된 diff chunk입니다.
+ 각 변경 내용을 기반으로, 내부 프로젝트에 적합한 커밋 메시지를 요청에 맞게 작성하세요.
+ 
+-🧱 Repo context:
++[Repo context]
+ {repo_context}
+ 
+-📝 변경된 diff 청크:
++[변경된 diff 청크]
+ {chunk}
+ 
+ {commit_chunk_txt}
+ """
+         var_name = f"c{c_index}"
+-        prompt_vars[var_name] = prompt
++        prompt_vars[var_name] = {
++            "text": prompt,
++            "model": llm_cfg_commit["model"][0],
++            "purpose": "commit_chunk"
++        }
+         c_index += 1
+ 
+         try:
+@@ -59,22 +53,23 @@ def generate_commit_and_record(
+             log(f"❌ 커밋 청크 메시지 생성 실패: {e}")
+             commit_msgs.append("[ERROR] 메시지 실패")
+ 
+-    # ────────────────────────────────
+-    # 🔹 최종 커밋 메시지 생성
+-    # ────────────────────────────────
+-    d = f"""
+-당신은 팀 프로젝트의 PR 메시지를 작성하는 전문가입니다.
++    # 최종 커밋 메시지
++    d = f"""당신은 팀 프로젝트의 PR 메시지를 작성하는 전문가입니다.
+ 아래는 레포의 전체 맥락과, chunk별로 생성된 커밋 메시지들입니다.
+ 
+-🧱 Repo context:
++[Repo context]
+ {repo_context}
+ 
+-🧩 개별 commit 메시지들:
++[개별 commit 메시지들]
+ {chr(10).join(commit_msgs)}
+ 
+ {final_commit_txt}
+ """
+-    prompt_vars["d"] = d
++    prompt_vars["d"] = {
++        "text": d,
++        "model": llm_cfg_final["model"][0],
++        "purpose": "commit_final"
++    }
+ 
+     try:
+         final_commit = call_llm(d, llm_cfg_final)

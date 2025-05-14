@@ -1,0 +1,46 @@
+@@ -80,7 +79,11 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
+ """
+ 
+         var_name = f"a{a_index}"
+-        prompt_vars[var_name] = prompt
++        prompt_vars[var_name] = {
++            "text": prompt,
++            "model": llm_file_cfg["model"][0],
++            "purpose": "summary"
++        }
+         a_index += 1
+ 
+         try:
+@@ -89,7 +92,6 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
+ 
+             save_path = paths["context_by_file"] / f"{path.name}.txt"
+             save_path.write_text(summary.strip(), encoding="utf-8")
+-
+         except Exception as e:
+             log(f"❌ 파일 요약 실패 - {path} / {e}")
+ 
+@@ -120,14 +122,18 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
+ - 주요 파일 및 핵심 로직
+ - 설계 철학이나 아키텍처 특징
+ """
+-    prompt_vars["b"] = b
++
++    prompt_vars["b"] = {
++        "text": b,
++        "model": llm_repo_cfg["model"][0],
++        "purpose": "global_context"
++    }
+ 
+     try:
+         final_summary = call_llm(b, llm_repo_cfg)
+         Path(paths["context_summary"]).write_text(final_summary.strip(), encoding="utf-8")
+         log("✅ 전체 레포 요약 완료")
+         return final_summary.strip(), prompt_vars
+-
+     except Exception as e:
+         log(f"❌ 전체 레포 요약 실패: {e}")
+         return "", prompt_vars
+diff --git a/scripts/run_all.py b/scripts/run_all.py
+index 2e93557..741598e 100644
+--- a/scripts/run_all.py
++++ b/scripts/run_all.py

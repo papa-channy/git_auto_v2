@@ -1,0 +1,104 @@
+@@ -21,17 +22,21 @@ def log(msg: str):
+         f.write(f"[{datetime.now().strftime('%H:%M')}] {msg.strip()}\n")
+ 
+ def load_config() -> dict:
+-    with open("config/llm.json", "r", encoding="utf-8") as f1, \
+-         open("config/style.json", "r", encoding="utf-8") as f2, \
+-         open("config/noti.json", "r", encoding="utf-8") as f3, \
+-         open("config/cost.json", "r", encoding="utf-8") as f4:
++    base_dir = Path(__file__).resolve().parent.parent / "config"
++    with open(base_dir / "llm.json", "r", encoding="utf-8") as f1, \
++         open(base_dir / "style.json", "r", encoding="utf-8") as f2, \
++         open(base_dir / "noti.json", "r", encoding="utf-8") as f3, \
++         open(base_dir / "cost.json", "r", encoding="utf-8") as f4:
++
++        style_cfg = json.load(f2)
+         return {
+-            "llm": json.load(f1),
+-            "style": json.load(f2)["style"],
+-            "lang": json.load(f2)["language"],
++            "llm": json.load(f1)["llm"],       # ✅ 내부 "llm" 키 추출
++            "style": style_cfg["style"],
++            "lang": style_cfg["language"],
+             "noti": json.load(f3),
+             "cost": json.load(f4)
+         }
++
+ def clear_repo_cache():
+     cache_txt = Path("logs/cache.txt")
+     if not cache_txt.exists():
+@@ -84,11 +89,11 @@ def main():
+     clear_repo_cache()
+ 
+     config = load_config()
+-    log(f"🚀 자동 실행 시작 - {timestamp}")
+-    config = load_config()
++    style_cfg = config["style"]
++    lang_cfg = config["lang"]
+     log(f"🚀 자동 실행 시작 - {timestamp}")
+ 
+-    # 1. context
++    # 1️⃣ 전체 레포 컨텍스트 요약
+     context_summary, prompt_vars_ctx = build_context(
+         log,
+         timestamp,
+@@ -96,45 +101,46 @@ def main():
+         config["llm"]["global_context"]
+     )
+ 
+-    # 2. diff
++    # 2️⃣ Git diff 및 청크 분리
+     diff_text = get_git_diff(log)
+     diff_chunks = split_diff_by_function(diff_text, timestamp, log)
+ 
+-    # 3. commit + record
++    # 3️⃣ Commit 메시지 생성 + 기록용 메시지 생성
+     commit_chunks, final_msg, record_msg, prompt_vars_commit = generate_commit_and_record(
+         diff_chunks,
+         context_summary,
+         config["llm"]["commit_chunk"],
+         config["llm"]["commit_final"],
+         config["llm"]["record"],
+-        config["style"],
+-        config["lang"],
++        style_cfg,
++        lang_cfg,
+         log
+     )
+ 
+-    # 4. sleep for LLM 안정화
++    # 4️⃣ LLM 호출 안정화를 위한 딥 슬립
+     all_prompts = {**prompt_vars_ctx, **prompt_vars_commit}
+     dynamic_sleep(all_prompts)
+ 
+-    # 5. 비용 계산
++    # 5️⃣ 비용 계산 및 요약 메시지
+     df_cost = calculate_llm_costs(all_prompts, timestamp, log)
+     cost_summary = df_cost[["model", "input_tokens", "output_tokens", "krw"]].groupby("model").sum()
+     cost_summary_msg = cost_summary.to_string()
+ 
+-    # 6. classify
++    # 6️⃣ 목적별 메시지 분기
+     git_msg = classify_for_git(final_msg)
+     notify_msgs = classify_for_notify(commit_chunks, final_msg, context_summary, "pending", cost_summary_msg)
+     record_msgs = classify_for_record(context_summary, commit_chunks, record_msg)
+ 
+-    # 7. Git commit
++    # 7️⃣ Git 커밋 실행
+     commit_status = "success" if do_git_commit(git_msg) else "fail"
+     notify_msgs[3] = f"📤 Git Push 상태: {'✅ 성공' if commit_status == 'success' else '❌ 실패'}"
+ 
+-    # 8. upload
++    # 8️⃣ 알림 전송 + 기록 업로드
+     send_notification(config["noti"]["noti_pf"], notify_msgs)
+     write_records(config["noti"]["record_pf"], record_msgs)
+ 
+     log("✅ run_all.py 전체 실행 완료")
+ 
++
+ if __name__ == "__main__":
+     main()
+diff --git a/scripts/upload.py b/scripts/upload.py
+index 6b05f46..1b5ebc7 100644
+--- a/scripts/upload.py
++++ b/scripts/upload.py

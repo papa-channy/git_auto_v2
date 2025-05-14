@@ -1,0 +1,74 @@
+@@ -136,19 +146,17 @@ def main():
+     print("\n🔍 check_err: 자동화 사전 점검 및 설정 시작\n")
+ 
+     global HEADERS
+-    HEADERS, api_key, username = load_env_and_api_key()
++    HEADERS, api_key = load_env_and_api_key()
+ 
+     check_git_user_config()
+     enforce_git_core_config()
+     ensure_required_files()
+     check_git_repo()
+     check_git_remote()
+-
++    # register_task_scheduler()
+     config = load_config()
+     check_notify_platforms(config.get("noti_pf", []))
+ 
+-    auto_create_and_run_bat(username)
+-
+     print("\n🎉 모든 점검 및 설정 완료. 자동화 준비 OK.\n")
+ 
+ if __name__ == "__main__":
+diff --git a/config/kakao_token.json b/config/kakao_token.json
+index 926447e..77eda55 100644
+--- a/config/kakao_token.json
++++ b/config/kakao_token.json
+@@ -1,5 +1,5 @@
+ {
+-    "access_token": "t5yzfzAXqQ48H2JSlgIoy0DivwsWejCpAAAAAQoNDF4AAAGWy1-1p8TTXs9KIG_V",
++    "access_token": "7R3TqoEBFvxRWGcdYP-aRYyYs7vV2fK5AAAAAQoNFKMAAAGWzDhm4MTTXs9KIG_V",
+     "updated_at": "2025-05-14 12:00:00"
+   }
+   
+\ No newline at end of file
+diff --git a/llm/llm_router.py b/llm/llm_router.py
+deleted file mode 100644
+index c7b7bbd..0000000
+--- a/llm/llm_router.py
++++ /dev/null
+@@ -1,30 +0,0 @@
+-def call_llm():
+-    # LLM 호출을 위한 설정
+-    llm_config = {
+-        "model": "gpt-3.5-turbo",
+-        "temperature": 0.7,
+-        "max_tokens": 1500,
+-        "top_p": 1.0,
+-        "frequency_penalty": 0.0,
+-        "presence_penalty": 0.0
+-    }
+-    
+-    # LLM 파라미터 설정
+-    llm_param = {
+-        "prompt": "Your prompt here",
+-        "model": llm_config["model"],
+-        "temperature": llm_config["temperature"],
+-        "max_tokens": llm_config["max_tokens"],
+-        "top_p": llm_config["top_p"],
+-        "frequency_penalty": llm_config["frequency_penalty"],
+-        "presence_penalty": llm_config["presence_penalty"]
+-    }
+-    
+-    # LLM 호출
+-    try:
+-        response = some_llm_api_call(llm_param)  # 실제 LLM API 호출 함수로 대체
+-        return response
+-    except Exception as e:
+-        print(f"LLM 호출 실패: {e}")
+-
+-    return None
+diff --git a/logs/cache.txt b/logs/cache.txt
+index 2edeafb..8e2afd3 100644
+--- a/logs/cache.txt
++++ b/logs/cache.txt

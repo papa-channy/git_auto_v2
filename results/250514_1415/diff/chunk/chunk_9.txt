@@ -1,0 +1,35 @@
+@@ -55,12 +55,11 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
+     for path in valid_files:
+         try:
+             code = path.read_text(encoding="utf-8").strip()
++            if not code:
++                continue
+         except:
+             continue
+ 
+-        if not code:
+-            continue
+-
+         prompt = f"""당신은 Git Repo 전체를 분석하여, Commit 메시지 생성 및 기술 문서 작성을 도울 요약 전문가입니다.
+ 이 요약은 코드의 버전 기록, 기술 문서화, 그리고 미래의 작업자나 나 자신을 위한 구조적 설명을 만드는 데 사용될 것입니다.
+ 
+@@ -80,7 +79,11 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
+ """
+ 
+         var_name = f"a{a_index}"
+-        prompt_vars[var_name] = prompt
++        prompt_vars[var_name] = {
++            "text": prompt,
++            "model": llm_file_cfg["model"][0],
++            "purpose": "summary"
++        }
+         a_index += 1
+ 
+         try:
+@@ -89,7 +92,6 @@ def build_context(log, timestamp: str, llm_file_cfg: dict, llm_repo_cfg: dict):
+ 
+             save_path = paths["context_by_file"] / f"{path.name}.txt"
+             save_path.write_text(summary.strip(), encoding="utf-8")
+-
+         except Exception as e:
+             log(f"❌ 파일 요약 실패 - {path} / {e}")
